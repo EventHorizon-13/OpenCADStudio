@@ -1,0 +1,56 @@
+name: BigFont Windows test build
+
+on:
+  push:
+    branches:
+      - codex/test-fixes
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bigfont-test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Build Windows x64 test binary
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build OpenCADStudio
+        shell: pwsh
+        env:
+          RUST_MIN_STACK: "67108864"
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc
+
+      - name: Build DWG thumbnailer
+        shell: pwsh
+        env:
+          RUST_MIN_STACK: "67108864"
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc -p dwg-thumbnailer-win
+
+      - name: Stage portable test build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/OpenCADStudio.exe dist/
+          Copy-Item target/x86_64-pc-windows-msvc/release/dwg_thumbnailer_win.dll dist/
+          if (Test-Path fonts) { Copy-Item fonts dist/fonts -Recurse }
+          Get-ChildItem dist -Recurse | Select-Object FullName, Length
+
+      - name: Upload Windows test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenCADStudio-BigFont-test-windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
