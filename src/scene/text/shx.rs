@@ -357,9 +357,20 @@ pub fn font_glyph(path: &str, code: u16) -> Option<Arc<crate::scene::text::lff::
         }
     }
     let built = (|| {
+        let file = load_file(path)?;
         let (above, _) = font_metrics(path)?;
         let (polys, advance) = shape_with_advance(path, code)?;
-        let k = 9.0 / above;
+
+        // BigFont glyph programs (including gbcbig.shx) establish their own
+        // drawing scale through shared subshapes. Their resulting coordinates
+        // are already in the stroke-font text space; applying 9 / header_above
+        // a second time shrinks CJK glyphs dramatically (gbcbig: ~7.8 units
+        // becomes ~1.1). Classic SHX/Unifont still need cap-height normalization.
+        let k = if file.kind == ShxKind::Bigfont {
+            1.0
+        } else {
+            9.0 / above
+        };
         let strokes: Vec<Vec<[f32; 2]>> = polys
             .iter()
             .filter(|p| p.len() > 1)
@@ -752,8 +763,9 @@ mod tests {
         assert_eq!((above, below), (48.0, 2.0));
         // `中` → Big5 A4A4 → the glyph; `A` is not in a big font.
         let g = bigfont_glyph(&path, '中').expect("glyph for 中");
-        // 6 font units at above = 48 → 6 * 9 / 48 = 1.125 text units.
-        assert!((g.advance - 1.125).abs() < 1e-4, "advance {}", g.advance);
+        // BigFont glyph programs carry their own scale; do not normalize
+        // them a second time using the shape-0 header's above metric.
+        assert!((g.advance - 6.0).abs() < 1e-4, "advance {}", g.advance);
         assert_eq!(g.strokes.len(), 1);
         assert!(bigfont_glyph(&path, 'A').is_none());
         assert!(
