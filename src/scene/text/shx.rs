@@ -323,8 +323,16 @@ fn build_shape(path: &str, shape_number: u16) -> Option<(ShapePolylines, f64)> {
 pub fn font_metrics(path: &str) -> Option<(f64, f64)> {
     let file = load_file(path)?;
     let (_, spec) = file.shapes.get(&0)?;
-    let above = *spec.first()? as f64;
-    let below = *spec.get(1)? as f64;
+
+    // BigFont shape-0 headers have a leading reserved byte before the
+    // one-byte above/below metrics. gbcbig.shx stores [0, 64, 2, 0].
+    // Reading byte 0 as the cap height makes the font invalid and silently
+    // routes every CJK character through the substitute face.
+    let (above, below) = match file.kind {
+        ShxKind::Bigfont => (*spec.get(1)? as f64, *spec.get(2)? as f64),
+        ShxKind::Shapes | ShxKind::Unifont => (*spec.first()? as f64, *spec.get(1)? as f64),
+    };
+
     if above <= 0.0 {
         return None;
     }
@@ -703,7 +711,8 @@ mod tests {
         b.extend_from_slice(&0xFFu16.to_le_bytes());
         let table_at = b.len();
         b.resize(table_at + 8 * entries as usize, 0);
-        let head_data: Vec<u8> = [b"BIG\x00".as_slice(), &[48u8, 0, 2]].concat();
+        // BigFont header: reserved byte, above, below, modes.
+        let head_data: Vec<u8> = [b"BIG\x00".as_slice(), &[0, 48u8, 2, 0]].concat();
         let glyph_data: Vec<u8> = [b"\x00".as_slice(), &BAR].concat();
         let head_off = b.len() as u32;
         b.extend_from_slice(&head_data);
@@ -740,7 +749,7 @@ mod tests {
         let path = tmp("cjk.shx", &synthetic_bigfont());
         assert!(is_bigfont(&path));
         let (above, below) = font_metrics(&path).expect("font header");
-        assert_eq!((above, below), (48.0, 0.0));
+        assert_eq!((above, below), (48.0, 2.0));
         // `中` → Big5 A4A4 → the glyph; `A` is not in a big font.
         let g = bigfont_glyph(&path, '中').expect("glyph for 中");
         // 6 font units at above = 48 → 6 * 9 / 48 = 1.125 text units.
