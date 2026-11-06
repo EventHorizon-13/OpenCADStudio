@@ -2438,23 +2438,9 @@ impl OpenCADStudio {
                     );
                     return Some(iced::Task::none());
                 }
-                let has_selected_solid = self.tabs[i]
-                    .scene
-                    .selected_entities()
-                    .iter()
-                    .any(|(_, entity)| matches!(entity, codec::EntityType::Solid3D(_)));
-                if !has_selected_solid {
-                    use crate::modules::draw::select::SelectObjectsCommand;
-                    let selection = SelectObjectsCommand::filtered(
-                        "VIEWBASE",
-                        "VIEWBASE",
-                        "Select 3D solids:",
-                        |entity| matches!(entity, codec::EntityType::Solid3D(_)),
-                    );
-                    self.command_line.push_info(&selection.prompt());
-                    self.tabs[i].active_cmd = Some(Box::new(selection));
-                    return Some(iced::Task::none());
-                }
+                // On a layout the 3D solids live in model space, not on the
+                // paper sheet. VIEWBASE falls back to model-space solids when
+                // no model-solid preselection is available.
                 return Some(self.solid_viewbase());
             }
 
