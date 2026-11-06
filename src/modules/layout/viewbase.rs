@@ -134,9 +134,7 @@ impl ProjectedTriangle {
 /// The returned segments share one projected model origin and are already
 /// arranged on the sheet. Hidden portions are marked so the command can render
 /// them as dashed, editable line entities at the chosen scale.
-pub fn project_bodies(
-    bodies: &[kernel::brep::Body],
-) -> Option<(Vec<ProjectionSegment>, f64)> {
+pub fn project_bodies(bodies: &[kernel::brep::Body]) -> Option<(Vec<ProjectionSegment>, f64)> {
     let mut prepared = Vec::new();
     let mut low = DVec3::splat(f64::INFINITY);
     let mut high = DVec3::splat(f64::NEG_INFINITY);
@@ -245,10 +243,8 @@ pub fn project_bodies(
 
             // The kernel computes smooth-face silhouettes analytically where
             // possible and from the tessellated face normals elsewhere.
-            let silhouette = kernel::brep::mesh::silhouette(
-                &body.silhouette,
-                basis.toward_viewer.to_array(),
-            );
+            let silhouette =
+                kernel::brep::mesh::silhouette(&body.silhouette, basis.toward_viewer.to_array());
             for pair in silhouette.chunks_exact(2) {
                 append_projected_edge(
                     DVec3::from_array(pair[0]),
@@ -387,8 +383,12 @@ fn segment_bounds(segments: &[ProjectionSegment]) -> Option<(DVec2, DVec2)> {
     let mut low = DVec2::splat(f64::INFINITY);
     let mut high = DVec2::splat(f64::NEG_INFINITY);
     for segment in segments {
-        low = low.min(segment.start.truncate()).min(segment.end.truncate());
-        high = high.max(segment.start.truncate()).max(segment.end.truncate());
+        low = low
+            .min(segment.start.truncate())
+            .min(segment.end.truncate());
+        high = high
+            .max(segment.start.truncate())
+            .max(segment.end.truncate());
     }
     (low.is_finite() && high.is_finite()).then_some((low, high))
 }
@@ -595,16 +595,10 @@ impl CadCommand for ViewBaseCommand {
 
 fn parse_scale(text: &str) -> Option<f64> {
     let text = text.trim();
-    if let Some((numerator, denominator)) = text
-        .split_once(':')
-        .or_else(|| text.split_once('/'))
-    {
+    if let Some((numerator, denominator)) = text.split_once(':').or_else(|| text.split_once('/')) {
         let numerator = numerator.trim().parse::<f64>().ok()?;
         let denominator = denominator.trim().parse::<f64>().ok()?;
-        if numerator.is_finite()
-            && denominator.is_finite()
-            && numerator > 0.0
-            && denominator > 0.0
+        if numerator.is_finite() && denominator.is_finite() && numerator > 0.0 && denominator > 0.0
         {
             let scale = numerator / denominator;
             return (scale.is_finite() && scale > 0.0).then_some(scale);
