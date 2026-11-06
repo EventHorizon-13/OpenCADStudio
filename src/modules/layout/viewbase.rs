@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use glam::{DVec2, DVec3};
 
 use crate::command::{CadCommand, CmdOption, CmdResult};
+use crate::modules::{IconKind, ModuleEvent, ToolDef};
 use crate::scene::model::wire_model::WireModel;
 
 #[derive(Clone, Copy, Debug)]
@@ -370,6 +371,15 @@ fn segment_bounds(segments: &[ProjectionSegment]) -> Option<(DVec2, DVec2)> {
         high = high.max(segment.start.truncate()).max(segment.end.truncate());
     }
     (low.is_finite() && high.is_finite()).then_some((low, high))
+}
+
+pub fn tool() -> ToolDef {
+    ToolDef {
+        id: "VIEWBASE",
+        label: "Base View",
+        icon: IconKind::Svg(include_bytes!("../../../assets/icons/model/flatshot.svg")),
+        event: ModuleEvent::Command("VIEWBASE".to_string()),
+    }
 }
 
 pub struct ViewBaseCommand {
