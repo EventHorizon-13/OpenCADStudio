@@ -410,7 +410,7 @@ impl ViewBaseCommand {
     }
 
     fn dash_lengths(&self) -> (f64, f64) {
-        let dash = (self.model_diagonal * self.scale * 0.008).clamp(1e-9, 4.0);
+        let dash = (self.model_diagonal * self.scale * 0.008).max(1e-9);
         (dash, dash * 0.65)
     }
 
