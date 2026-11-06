@@ -10,6 +10,7 @@ use kernel::brep::{Body, EdgeKey, FaceKey};
 use std::collections::{HashMap, HashSet};
 
 use super::Message;
+use crate::command::CadCommand;
 use crate::modules::model::boolean_cmd::BoolOp;
 use crate::scene::model::solid_history;
 use crate::scene::model::solid_model::{self, Bool};
