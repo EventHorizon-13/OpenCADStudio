@@ -2566,6 +2566,49 @@ impl super::OpenCADStudio {
         Task::none()
     }
 
+    /// VIEWBASE — build a static four-view drawing from selected B-rep solids.
+    pub(super) fn solid_viewbase(&mut self) -> Task<Message> {
+        let i = self.active_tab;
+        if self.tabs[i].scene.current_layout == "Model" {
+            self.command_line
+                .push_error("VIEWBASE: switch to a paper-space layout first.");
+            return Task::none();
+        }
+        if self.tabs[i].scene.active_viewport.is_some() {
+            self.command_line
+                .push_error("VIEWBASE: return to paper space (PSPACE) before placing views.");
+            return Task::none();
+        }
+
+        let handles = self.selected_solid_handles();
+        if handles.is_empty() {
+            self.command_line.push_error(
+                "VIEWBASE: select one or more 3D solids in the current drawing.",
+            );
+            return Task::none();
+        }
+
+        let bodies = handles
+            .iter()
+            .filter_map(|handle| self.tabs[i].scene.solid_models.get(handle).cloned())
+            .collect::<Vec<_>>();
+        let Some((segments, model_diagonal)) =
+            crate::modules::layout::viewbase::project_bodies(&bodies)
+        else {
+            self.command_line
+                .push_error("VIEWBASE: the selected solids could not be projected.");
+            return Task::none();
+        };
+
+        let command = crate::modules::layout::viewbase::ViewBaseCommand::new(
+            segments,
+            model_diagonal,
+        );
+        self.command_line.push_info(&command.prompt());
+        self.tabs[i].active_cmd = Some(Box::new(command));
+        Task::none()
+    }
+
     /// CONVTOSURFACE — convert the selected solid(s) into Surface entities,
     /// carrying the solid's edge wires (reuses the cached B-rep's edge wires).
     pub(super) fn solid_convtosurface(&mut self) -> Task<Message> {
