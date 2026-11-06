@@ -2438,7 +2438,12 @@ impl OpenCADStudio {
                     );
                     return Some(iced::Task::none());
                 }
-                if self.tabs[i].scene.selected_entities().is_empty() {
+                let has_selected_solid = self.tabs[i]
+                    .scene
+                    .selected_entities()
+                    .iter()
+                    .any(|(_, entity)| matches!(entity, codec::EntityType::Solid3D(_)));
+                if !has_selected_solid {
                     use crate::modules::draw::select::SelectObjectsCommand;
                     let selection = SelectObjectsCommand::filtered(
                         "VIEWBASE",
