@@ -2582,9 +2582,8 @@ impl super::OpenCADStudio {
 
         let handles = self.selected_solid_handles();
         if handles.is_empty() {
-            self.command_line.push_error(
-                "VIEWBASE: select one or more 3D solids in the current drawing.",
-            );
+            self.command_line
+                .push_error("VIEWBASE: select one or more 3D solids in the current drawing.");
             return Task::none();
         }
 
@@ -2600,10 +2599,8 @@ impl super::OpenCADStudio {
             return Task::none();
         };
 
-        let command = crate::modules::layout::viewbase::ViewBaseCommand::new(
-            segments,
-            model_diagonal,
-        );
+        let command =
+            crate::modules::layout::viewbase::ViewBaseCommand::new(segments, model_diagonal);
         self.command_line.push_info(&command.prompt());
         self.tabs[i].active_cmd = Some(Box::new(command));
         Task::none()
