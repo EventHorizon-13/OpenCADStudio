@@ -2433,8 +2433,9 @@ impl OpenCADStudio {
                     return Some(iced::Task::none());
                 }
                 if self.tabs[i].scene.active_viewport.is_some() {
-                    self.command_line
-                        .push_error("VIEWBASE: return to paper space (PSPACE) before placing views.");
+                    self.command_line.push_error(
+                        "VIEWBASE: return to paper space (PSPACE) before placing views.",
+                    );
                     return Some(iced::Task::none());
                 }
                 if self.tabs[i].scene.selected_entities().is_empty() {
