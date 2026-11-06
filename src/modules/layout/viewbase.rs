@@ -131,9 +131,9 @@ impl ProjectedTriangle {
 
 /// Project one or more restored kernel bodies into four first-angle views.
 ///
-/// The returned segments are centred around the front view's origin and are
-/// already arranged on the sheet. Hidden portions are marked so the command
-/// can render them as dashed, editable line entities at the chosen scale.
+/// The returned segments share one projected model origin and are already
+/// arranged on the sheet. Hidden portions are marked so the command can render
+/// them as dashed, editable line entities at the chosen scale.
 pub fn project_bodies(
     bodies: &[kernel::brep::Body],
 ) -> Option<(Vec<ProjectionSegment>, f64)> {
@@ -186,6 +186,7 @@ pub fn project_bodies(
     }
 
     let model_diagonal = (high - low).length().max(1e-6);
+    let model_centre = (low + high) * 0.5;
     let triangles = prepared
         .iter()
         .flat_map(|body| {
@@ -212,6 +213,7 @@ pub fn project_bodies(
 
     let mut views = Vec::with_capacity(4);
     for basis in bases {
+        let projected_origin = basis.project(model_centre).0;
         let projected_triangles = triangles
             .iter()
             .filter_map(|triangle| ProjectedTriangle::new(*triangle, basis))
@@ -228,6 +230,7 @@ pub fn project_bodies(
                         pair[0],
                         pair[1],
                         basis,
+                        projected_origin,
                         &projected_triangles,
                         depth_tolerance,
                         model_diagonal,
@@ -248,6 +251,7 @@ pub fn project_bodies(
                     DVec3::from_array(pair[0]),
                     DVec3::from_array(pair[1]),
                     basis,
+                    projected_origin,
                     &projected_triangles,
                     depth_tolerance,
                     model_diagonal,
@@ -257,44 +261,39 @@ pub fn project_bodies(
             }
         }
 
-        let Some((view_low, view_high)) = segment_bounds(&segments) else {
+        let Some(bounds) = segment_bounds(&segments) else {
             return None;
         };
-        let centre = (view_low + view_high) * 0.5;
-        let size = view_high - view_low;
-        for segment in &mut segments {
-            segment.start.x -= centre.x;
-            segment.start.y -= centre.y;
-            segment.end.x -= centre.x;
-            segment.end.y -= centre.y;
-        }
-        views.push((segments, size));
+        views.push((segments, bounds));
     }
 
     let gap = model_diagonal * 0.12;
-    let front_size = views[0].1;
-    let top_size = views[1].1;
-    let left_size = views[2].1;
-    let iso_size = views[3].1;
+    let front_bounds = views[0].1;
+    let top_bounds = views[1].1;
+    let left_bounds = views[2].1;
+    let iso_bounds = views[3].1;
 
-    // First-angle projection: top below front; left view to the right.
-    let centres = [
+    // Preserve the shared projection axes while unfolding the views into a
+    // first-angle sheet arrangement: top below front, left to the right.
+    let front_centre_y = (front_bounds.0.y + front_bounds.1.y) * 0.5;
+    let iso_centre_y = (iso_bounds.0.y + iso_bounds.1.y) * 0.5;
+    let offsets = [
         DVec2::ZERO,
-        DVec2::new(0.0, -(front_size.y * 0.5 + gap + top_size.y * 0.5)),
-        DVec2::new(front_size.x * 0.5 + gap + left_size.x * 0.5, 0.0),
+        DVec2::new(0.0, front_bounds.0.y - gap - top_bounds.1.y),
+        DVec2::new(front_bounds.1.x + gap - left_bounds.0.x, 0.0),
         DVec2::new(
-            front_size.x * 0.5 + gap + left_size.x + gap + iso_size.x * 0.5,
-            0.0,
+            left_bounds.1.x + gap - iso_bounds.0.x,
+            front_centre_y - iso_centre_y,
         ),
     ];
 
     let mut output = Vec::new();
-    for ((segments, _), centre) in views.into_iter().zip(centres) {
+    for ((segments, _), offset) in views.into_iter().zip(offsets) {
         output.extend(segments.into_iter().map(|mut segment| {
-            segment.start.x += centre.x;
-            segment.start.y += centre.y;
-            segment.end.x += centre.x;
-            segment.end.y += centre.y;
+            segment.start.x += offset.x;
+            segment.start.y += offset.y;
+            segment.end.x += offset.x;
+            segment.end.y += offset.y;
             segment
         }));
     }
@@ -306,6 +305,7 @@ fn append_projected_edge(
     start: DVec3,
     end: DVec3,
     basis: ViewBasis,
+    projected_origin: DVec2,
     triangles: &[ProjectedTriangle],
     depth_tolerance: f64,
     model_diagonal: f64,
@@ -329,6 +329,8 @@ fn append_projected_edge(
         let hidden = is_occluded(middle, basis, triangles, depth_tolerance);
         let (a2, _) = basis.project(a);
         let (b2, _) = basis.project(b);
+        let a2 = a2 - projected_origin;
+        let b2 = b2 - projected_origin;
         if a2.distance(b2) <= model_diagonal * 1e-12 {
             continue;
         }
