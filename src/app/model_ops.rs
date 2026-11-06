@@ -2581,10 +2581,40 @@ impl super::OpenCADStudio {
             return Task::none();
         }
 
-        let handles = self.selected_solid_handles();
+        // A paper-space selection cannot normally pick geometry inside a
+        // model-space viewport. Prefer any preselected solids, otherwise use
+        // the Model layout's own solids (as AutoCAD VIEWBASE From Model Space).
+        let mut handles = self.selected_solid_handles();
+        if handles.is_empty() {
+            let scene = &mut self.tabs[i].scene;
+            let model_block = scene.model_space_block_handle();
+            handles = scene
+                .document
+                .block_records
+                .iter()
+                .find(|br| br.handle == model_block)
+                .map(|br| br.entity_handles.to_vec())
+                .unwrap_or_default();
+            if handles.is_empty() {
+                handles = scene
+                    .document
+                    .entities()
+                    .filter(|entity| {
+                        matches!(entity, EntityType::Solid3D(_))
+                            && entity.common().owner_handle == model_block
+                    })
+                    .map(|entity| entity.common().handle)
+                    .collect();
+            }
+            handles.retain(|handle| {
+                matches!(scene.document.get_entity(*handle), Some(EntityType::Solid3D(_)))
+            });
+            scene.restore_solid_models(&handles);
+            handles.retain(|handle| scene.solid_models.contains_key(handle));
+        }
         if handles.is_empty() {
             self.command_line
-                .push_error("VIEWBASE: select one or more 3D solids in the current drawing.");
+                .push_error("VIEWBASE: no restorable model-space 3D solids found.");
             return Task::none();
         }
 
