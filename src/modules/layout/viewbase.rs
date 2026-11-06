@@ -49,6 +49,14 @@ impl ViewBasis {
         }
     }
 
+    fn from_axes(right: DVec3, up: DVec3, toward_viewer: DVec3) -> Self {
+        Self {
+            right: right.normalize_or_zero(),
+            up: up.normalize_or_zero(),
+            toward_viewer: toward_viewer.normalize_or_zero(),
+        }
+    }
+
     fn project(self, point: DVec3) -> (DVec2, f64) {
         (
             DVec2::new(point.dot(self.right), point.dot(self.up)),
@@ -194,10 +202,10 @@ pub fn project_bodies(
     let bases = [
         // Front: +X to the right, +Z up, viewer on -Y.
         ViewBasis::new(-DVec3::Y, DVec3::Z),
-        // Top: +X to the right, +Y up, viewer above the part.
-        ViewBasis::new(DVec3::Z, DVec3::Y),
-        // Left: -Y to the right, +Z up, viewer on -X.
-        ViewBasis::new(-DVec3::X, DVec3::Z),
+        // First-angle top: front (-Y) is at the top, next to the front view.
+        ViewBasis::from_axes(DVec3::X, -DVec3::Y, DVec3::Z),
+        // First-angle left view: the front (-Y) edge is on the left.
+        ViewBasis::from_axes(DVec3::Y, DVec3::Z, -DVec3::X),
         // Isometric: viewer on the +X / -Y / +Z diagonal.
         ViewBasis::new(DVec3::new(1.0, -1.0, 1.0), DVec3::Z),
     ];
@@ -263,7 +271,7 @@ pub fn project_bodies(
         views.push((segments, size));
     }
 
-    let gap = (model_diagonal * 0.12).max(5.0);
+    let gap = model_diagonal * 0.12;
     let front_size = views[0].1;
     let top_size = views[1].1;
     let left_size = views[2].1;
@@ -400,7 +408,7 @@ impl ViewBaseCommand {
     }
 
     fn dash_lengths(&self) -> (f64, f64) {
-        let dash = (self.model_diagonal * self.scale * 0.008).clamp(0.5, 4.0);
+        let dash = (self.model_diagonal * self.scale * 0.008).clamp(1e-9, 4.0);
         (dash, dash * 0.65)
     }
 
@@ -607,13 +615,14 @@ mod tests {
         assert!(front_x.x > 0.0 && front_x.y.abs() < 1e-12);
         assert!(front_z.y > 0.0 && front_z.x.abs() < 1e-12);
 
-        let top = ViewBasis::new(DVec3::Z, DVec3::Y);
-        let (top_y, _) = top.project(DVec3::Y);
-        assert!(top_y.y > 0.0);
+        let top = ViewBasis::from_axes(DVec3::X, -DVec3::Y, DVec3::Z);
+        let (top_front, _) = top.project(-DVec3::Y);
+        let (top_back, _) = top.project(DVec3::Y);
+        assert!(top_front.y > 0.0 && top_back.y < 0.0);
 
-        let left = ViewBasis::new(-DVec3::X, DVec3::Z);
-        let (left_y, _) = left.project(DVec3::Y);
-        assert!(left_y.x < 0.0);
+        let left = ViewBasis::from_axes(DVec3::Y, DVec3::Z, -DVec3::X);
+        let (left_front, _) = left.project(-DVec3::Y);
+        assert!(left_front.x < 0.0);
     }
 
     #[test]
