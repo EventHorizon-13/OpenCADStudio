@@ -2425,6 +2425,28 @@ impl OpenCADStudio {
                 return Some(self.solid_flatshot());
             }
 
+            // VIEWBASE — create editable orthographic drawing views in paper space.
+            "VIEWBASE" => {
+                if self.tabs[i].scene.current_layout == "Model" {
+                    self.command_line
+                        .push_error("VIEWBASE: switch to a paper-space layout first.");
+                    return Some(iced::Task::none());
+                }
+                if self.tabs[i].scene.active_viewport.is_some() {
+                    self.command_line
+                        .push_error("VIEWBASE: return to paper space (PSPACE) before placing views.");
+                    return Some(iced::Task::none());
+                }
+                if self.tabs[i].scene.selected_entities().is_empty() {
+                    use crate::modules::draw::select::SelectObjectsCommand;
+                    let selection = SelectObjectsCommand::new("VIEWBASE");
+                    self.command_line.push_info(&selection.prompt());
+                    self.tabs[i].active_cmd = Some(Box::new(selection));
+                    return Some(iced::Task::none());
+                }
+                return Some(self.solid_viewbase());
+            }
+
             // CONVTOSURFACE — convert the selected solid(s) to surface entities.
             "CONVTOSURFACE" => {
                 return Some(self.solid_convtosurface());
