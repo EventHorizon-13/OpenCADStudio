@@ -1000,6 +1000,7 @@ inventory::submit!(crate::command::CommandRegistration {
         "ARCHIVE",
         "ETRANSMIT",
         "FLATSHOT",
+        "VIEWBASE",
         "CONVTOSURFACE",
         // Slice/section + interference + press-pull/thicken + 3D transforms + wall/pyramid.
         "SLICE",

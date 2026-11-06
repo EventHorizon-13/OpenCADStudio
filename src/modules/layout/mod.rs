@@ -3,6 +3,7 @@
 
 pub mod mview;
 pub mod mvsetup;
+pub mod viewbase;
 pub mod vplayer;
 
 use crate::modules::{CadModule, IconKind, ModuleEvent, RibbonGroup, ToolDef};
@@ -12,6 +13,7 @@ use crate::modules::{CadModule, IconKind, ModuleEvent, RibbonGroup, ToolDef};
 pub fn paper_space_tools() -> Vec<ToolDef> {
     vec![
         mview::tool(),
+        viewbase::tool(),
         ToolDef {
             id: "PAGESETUP",
             label: "Page Setup",
@@ -43,7 +45,7 @@ impl CadModule for LayoutModule {
             vec![
                 RibbonGroup {
                     title: "Viewport",
-                    tools: vec![mview::tool().into()],
+                    tools: vec![mview::tool().into(), viewbase::tool().into()],
                 },
                 RibbonGroup {
                     title: "Plot",

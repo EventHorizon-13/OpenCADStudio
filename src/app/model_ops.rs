@@ -10,6 +10,7 @@ use kernel::brep::{Body, EdgeKey, FaceKey};
 use std::collections::{HashMap, HashSet};
 
 use super::Message;
+use crate::command::CadCommand;
 use crate::modules::model::boolean_cmd::BoolOp;
 use crate::scene::model::solid_history;
 use crate::scene::model::solid_model::{self, Bool};
@@ -2563,6 +2564,76 @@ impl super::OpenCADStudio {
         self.refresh_properties();
         self.command_line
             .push_output(crate::tf!("FLATSHOT: created {n} projected edge(s) at Z=0.").as_ref());
+        Task::none()
+    }
+
+    /// VIEWBASE — build a static four-view drawing from selected B-rep solids.
+    pub(super) fn solid_viewbase(&mut self) -> Task<Message> {
+        let i = self.active_tab;
+        if self.tabs[i].scene.current_layout == "Model" {
+            self.command_line
+                .push_error("VIEWBASE: switch to a paper-space layout first.");
+            return Task::none();
+        }
+        if self.tabs[i].scene.active_viewport.is_some() {
+            self.command_line
+                .push_error("VIEWBASE: return to paper space (PSPACE) before placing views.");
+            return Task::none();
+        }
+
+        // A paper-space selection cannot normally pick geometry inside a
+        // model-space viewport. Prefer any preselected solids, otherwise use
+        // the Model layout's own solids (as AutoCAD VIEWBASE From Model Space).
+        let mut handles = self.selected_solid_handles();
+        if handles.is_empty() {
+            let scene = &mut self.tabs[i].scene;
+            let model_block = scene.model_space_block_handle();
+            handles = scene
+                .document
+                .block_records
+                .iter()
+                .find(|br| br.handle == model_block)
+                .map(|br| br.entity_handles.to_vec())
+                .unwrap_or_default();
+            if handles.is_empty() {
+                handles = scene
+                    .document
+                    .entities()
+                    .filter(|entity| {
+                        matches!(entity, EntityType::Solid3D(_))
+                            && entity.common().owner_handle == model_block
+                    })
+                    .map(|entity| entity.common().handle)
+                    .collect();
+            }
+            handles.retain(|handle| {
+                matches!(scene.document.get_entity(*handle), Some(EntityType::Solid3D(_)))
+            });
+            scene.restore_solid_models(&handles);
+            handles.retain(|handle| scene.solid_models.contains_key(handle));
+        }
+        if handles.is_empty() {
+            self.command_line
+                .push_error("VIEWBASE: no restorable model-space 3D solids found.");
+            return Task::none();
+        }
+
+        let bodies = handles
+            .iter()
+            .filter_map(|handle| self.tabs[i].scene.solid_models.get(handle).cloned())
+            .collect::<Vec<_>>();
+        let Some((segments, model_diagonal)) =
+            crate::modules::layout::viewbase::project_bodies(&bodies)
+        else {
+            self.command_line
+                .push_error("VIEWBASE: the selected solids could not be projected.");
+            return Task::none();
+        };
+
+        let command =
+            crate::modules::layout::viewbase::ViewBaseCommand::new(segments, model_diagonal);
+        self.command_line.push_info(&command.prompt());
+        self.tabs[i].active_cmd = Some(Box::new(command));
         Task::none()
     }
 
