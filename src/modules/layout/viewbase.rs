@@ -651,6 +651,8 @@ mod tests {
         let (segments, diagonal) = project_bodies(&[body]).expect("projected views");
         assert!(diagonal > 0.0);
         assert!(segments.len() > 12);
+        assert!(segments.iter().any(|segment| segment.hidden));
+        assert!(segments.iter().any(|segment| !segment.hidden));
         assert!(segments.iter().all(|segment| {
             segment.start.z == 0.0
                 && segment.end.z == 0.0
