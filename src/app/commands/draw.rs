@@ -2439,7 +2439,12 @@ impl OpenCADStudio {
                 }
                 if self.tabs[i].scene.selected_entities().is_empty() {
                     use crate::modules::draw::select::SelectObjectsCommand;
-                    let selection = SelectObjectsCommand::new("VIEWBASE");
+                    let selection = SelectObjectsCommand::filtered(
+                        "VIEWBASE",
+                        "VIEWBASE",
+                        "Select 3D solids:",
+                        |entity| matches!(entity, codec::EntityType::Solid3D(_)),
+                    );
                     self.command_line.push_info(&selection.prompt());
                     self.tabs[i].active_cmd = Some(Box::new(selection));
                     return Some(iced::Task::none());
