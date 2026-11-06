@@ -5,7 +5,7 @@
 //! drawing practice: top below front, left view to the right, and an isometric
 //! view at the far right.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use glam::{DVec2, DVec3};
 
@@ -149,6 +149,9 @@ pub fn project_bodies(
                 1e-9,
             ),
         );
+        if !tessellation.missing_faces.is_empty() {
+            return None;
+        }
         if tessellation.mesh.is_empty() {
             continue;
         }
@@ -220,7 +223,7 @@ pub fn project_bodies(
             .collect::<Vec<_>>();
 
         let mut segments = Vec::new();
-        let mut seen = HashSet::new();
+        let mut seen = HashMap::new();
         let depth_tolerance = model_diagonal * 1e-7;
 
         for body in &prepared {
@@ -309,7 +312,7 @@ fn append_projected_edge(
     triangles: &[ProjectedTriangle],
     depth_tolerance: f64,
     model_diagonal: f64,
-    seen: &mut HashSet<((i64, i64), (i64, i64))>,
+    seen: &mut HashMap<((i64, i64), (i64, i64)), usize>,
     output: &mut Vec<ProjectionSegment>,
 ) {
     let length = start.distance(end);
@@ -347,10 +350,17 @@ fn append_projected_edge(
         if kb < ka {
             std::mem::swap(&mut ka, &mut kb);
         }
-        if !seen.insert((ka, kb)) {
+        let key = (ka, kb);
+        if let Some(existing) = seen.get(&key).copied() {
+            // If coincident projected edges include a visible one, keep the
+            // visible representation instead of hiding it behind a duplicate.
+            if !hidden {
+                output[existing].hidden = false;
+            }
             continue;
         }
 
+        seen.insert(key, output.len());
         output.push(ProjectionSegment {
             start: DVec3::new(a2.x, a2.y, 0.0),
             end: DVec3::new(b2.x, b2.y, 0.0),
